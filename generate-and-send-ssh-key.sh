@@ -7,10 +7,10 @@ FILENAME=~/.ssh/id_test
 KEYTYPE=rsa
 HOST=host
 USER=${USER}
-
+CONFIG_FILE="/Users/thomassimon/.ssh/config"  # Variable for config file path
 # use "-p <port>" if the ssh-server is listening on a different port
 SSH_OPTS="-o PubkeyAuthentication=no"
-
+NICKNAME=""
 #
 # NO MORE CONFIG SETTING BELOW THIS LINE
 #
@@ -21,6 +21,7 @@ function usage() {
     echo "  -u (--user)       <username>, default: ${USER}"
     echo "  -f (--file)       <file>,     default: ${FILENAME}"
     echo "  -h (--host)       <hostname>, default: ${HOST}"
+	echo "  -n (--nick)       <nickname>, default: none"
 
     echo "  -p (--port)       <port>,     default: <default ssh port>"
     echo "  -k (--keysize)    <size>,     default: ${KEYSIZE}"
@@ -50,6 +51,10 @@ do
 			;;
 		-h*|--host)
 			HOST="$1"
+			shift
+			;;
+		-n*|--nick)
+			NICKNAME="$1"
 			shift
 			;;
 		-p*|--port)
@@ -141,7 +146,7 @@ else
     fi
 fi
 
-RET=$?
+in=$?
 if [ ${RET} -ne 0 ];then
     echo ssh-copy-id failed: ${RET}
     exit 1
@@ -155,6 +160,33 @@ if [ ${RET} -ne 0 ];then
     echo ssh-chmod failed: ${RET}
     exit 1
 fi
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    echo "macOS detected. adding to keychain"
+	ssh-add "--apple-use-keychain" ${FILENAME}
+fi
+
+RET=$?
+if [ ${RET} -ne 0 ];then
+    echo ssh-add failed: ${RET}
+    exit 1
+fi
+if [ ! -z "$VARIABLE" ]; then
+	TEXT="\nHost ${HOST}\n  UseKeychain yes\n  AddKeysToAgent yes\n  IdentityFile ~/.ssh/${FILENAME}"
+	# Check if the text already exists in the file
+	if grep -qF "${TEXT}" "${CONFIG_FILE}"; then
+		echo "Text already exists in file."
+	else
+		# Append the text to the file
+		echo -e "${TEXT}" >> "${CONFIG_FILE}"
+		echo "Text appended to ${CONFIG_FILE}."
+		RET=$?
+		if [ ${RET} -ne 0 ];then
+			echo appending to ${CONFIG_FILE} failed: ${RET}
+			exit 1
+		fi
+	fi
+fi
+
 
 # Cut out PubKeyAuth=no here as it should work without it now
 echo
